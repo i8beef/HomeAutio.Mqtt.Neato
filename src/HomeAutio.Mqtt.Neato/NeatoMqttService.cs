@@ -142,6 +142,8 @@ namespace HomeAutio.Mqtt.Neato
                         .ConfigureAwait(false);
                     break;
             }
+
+            await RefreshStateAsync();
         }
 
         #endregion
@@ -149,38 +151,13 @@ namespace HomeAutio.Mqtt.Neato
         #region Neato implementation
 
         /// <summary>
-        /// Heartbeat ping. Failure will result in the heartbeat being stopped, which will
-        /// make any future calls throw an exception as the heartbeat indicator will be disabled.
+        /// Refreshes current state and publishes changes.
         /// </summary>
         /// <param name="sender">Event sender.</param>
         /// <param name="e">Event args.</param>
         private async void RefreshAsync(object sender, ElapsedEventArgs e)
         {
-            // Make all of the calls to get current status
-            var state = await _client.GetRobotStateAsync()
-                .ConfigureAwait(false);
-
-            var topicMap = GetTopicMap(state);
-
-            // Compare to current cached status
-            var updates = CompareStatusObjects(_topicMap, topicMap);
-
-            // If updated, publish changes
-            if (updates.Count > 0)
-            {
-                foreach (var update in updates)
-                {
-                    await MqttClient.PublishAsync(new MqttApplicationMessageBuilder()
-                        .WithTopic(TopicRoot + update.Key)
-                        .WithPayload(update.Value.Trim())
-                        .WithAtLeastOnceQoS()
-                        .WithRetainFlag()
-                        .Build())
-                        .ConfigureAwait(false);
-                }
-
-                _topicMap = topicMap;
-            }
+            await RefreshStateAsync();
         }
 
         /// <summary>
@@ -216,6 +193,39 @@ namespace HomeAutio.Mqtt.Neato
                     .WithRetainFlag()
                     .Build())
                     .ConfigureAwait(false);
+            }
+        }
+
+        /// <summary>
+        /// Refreshes current state and publishes changes.
+        /// </summary>
+        /// <returns>Awaitable <see cref="Task" />.</returns>
+        private async Task RefreshStateAsync()
+        {
+            // Make all of the calls to get current status
+            var state = await _client.GetRobotStateAsync()
+                .ConfigureAwait(false);
+
+            var topicMap = GetTopicMap(state);
+
+            // Compare to current cached status
+            var updates = CompareStatusObjects(_topicMap, topicMap);
+
+            // If updated, publish changes
+            if (updates.Count > 0)
+            {
+                foreach (var update in updates)
+                {
+                    await MqttClient.PublishAsync(new MqttApplicationMessageBuilder()
+                        .WithTopic(TopicRoot + update.Key)
+                        .WithPayload(update.Value.Trim())
+                        .WithAtLeastOnceQoS()
+                        .WithRetainFlag()
+                        .Build())
+                        .ConfigureAwait(false);
+                }
+
+                _topicMap = topicMap;
             }
         }
 
