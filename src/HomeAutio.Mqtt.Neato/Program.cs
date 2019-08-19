@@ -3,6 +3,9 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
+using I8Beef.Neato;
+using I8Beef.Neato.BeeHive;
+using I8Beef.Neato.Nucleo;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -50,6 +53,9 @@ namespace HomeAutio.Mqtt.Neato
 
             try
             {
+                // Validates existing or gets new secretKey
+                await ValidateSecretKey(config);
+
                 var hostBuilder = CreateHostBuilder(config);
                 await hostBuilder.RunConsoleAsync();
             }
@@ -77,17 +83,8 @@ namespace HomeAutio.Mqtt.Neato
                 .ConfigureServices((hostContext, services) =>
                 {
                     // Setup client
-                    services.AddScoped<IClient>(serviceProvider =>
-                    {
-                        if (config.GetValue<string>("denon:denonConnectionType") == "http")
-                        {
-                            return new I8Beef.Denon.HttpClient.Client(config.GetValue<string>("denon:denonHost"));
-                        }
-                        else
-                        {
-                            return new I8Beef.Denon.TelnetClient.Client(config.GetValue<string>("denon:denonHost"));
-                        }
-                    });
+                    services.AddScoped<INucleoClient, NucleoClient>(serviceProvider => new NucleoClient(config.GetValue<string>("neato:serialNumber"), config.GetValue<string>("neato:secretKey")));
+                    services.AddScoped<IRobot, Robot>();
 
                     // Setup service instance
                     services.AddScoped<IHostedService, NeatoMqttService>(serviceProvider =>
@@ -146,10 +143,37 @@ namespace HomeAutio.Mqtt.Neato
                         return new NeatoMqttService(
                             serviceProvider.GetRequiredService<ILogger<NeatoMqttService>>(),
                             serviceProvider.GetRequiredService<IRobot>(),
-                            config.GetValue<string>("denon:denonName"),
+                            config.GetValue<string>("neato:neatoName"),
+                            config.GetValue<int>("neato:refreshInterval"),
                             brokerSettings);
                     });
                 });
+        }
+
+        /// <summary>
+        /// Validates current, or gets new secret key.
+        /// </summary>
+        /// <param name="config">External configuration.</param>
+        /// <returns>An awaitable <see cref="Task"/>.</returns>
+        private static async Task ValidateSecretKey(IConfiguration config)
+        {
+            // initialize tokens
+            var beeHiveClient = new BeeHiveClient(
+                config.GetValue<string>("neato:email"),
+                config.GetValue<string>("neato:password"));
+
+            var robots = await beeHiveClient.GetRobotsAsync();
+
+            for (var i = 0; i < robots.Count; i++)
+            {
+                Console.WriteLine("{ serial: '" + robots[i].Serial + "', secretKey: '" + robots[i].SecretKey + "' }");
+            }
+
+            Console.WriteLine("Update config file with one of above values. Restarting in 15 seconds");
+
+            await Task.Delay(15 * 1000);
+
+            throw new Exception("Missing serial and secreyKey");
         }
     }
 }

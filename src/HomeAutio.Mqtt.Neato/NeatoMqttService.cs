@@ -1,9 +1,14 @@
-﻿using System.Threading;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Timers;
 using HomeAutio.Mqtt.Core;
 using I8Beef.Neato;
-using I8Beef.Neato.Commands;
-using I8Beef.Neato.Events;
+using I8Beef.Neato.Nucleo.Protocol;
+using I8Beef.Neato.Nucleo.Protocol.Services.HouseCleaning;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
 
@@ -14,57 +19,58 @@ namespace HomeAutio.Mqtt.Neato
     /// </summary>
     public class NeatoMqttService : ServiceBase
     {
-        private ILogger<NeatoMqttService> _log;
+        private readonly ILogger<NeatoMqttService> _log;
+        private readonly IRobot _client;
+        private readonly int _refreshInterval;
+        private System.Timers.Timer _refresh;
+
         private bool _disposed = false;
 
-        private IClient _client;
-        private string _NeatoName;
+        private IDictionary<string, string> _topicMap;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="NeatoMqttService"/> class.
         /// </summary>
         /// <param name="logger">Logging instance.</param>
-        /// <param name="NeatoClient">Neato client.</param>
-        /// <param name="NeatoName">Neato name.</param>
+        /// <param name="neatoClient">Neato client.</param>
+        /// <param name="neatoName">Neato name.</param>
+        /// <param name="refreshInterval">Refresh interval.</param>
         /// <param name="brokerSettings">MQTT broker settings.</param>
         public NeatoMqttService(
             ILogger<NeatoMqttService> logger,
-            IClient NeatoClient,
-            string NeatoName,
+            IRobot neatoClient,
+            string neatoName,
+            int refreshInterval,
             BrokerSettings brokerSettings)
-            : base(logger, brokerSettings, "Neato/" + NeatoName)
+            : base(logger, brokerSettings, "Neato/" + neatoName)
         {
             _log = logger;
-            SubscribedTopics.Add(TopicRoot + "/controls/+/set");
+            _refreshInterval = refreshInterval * 1000;
 
-            _client = NeatoClient;
-            _NeatoName = NeatoName;
+            SubscribedTopics.Add(TopicRoot + "/+/set");
 
-            _client.EventReceived += Neato_EventReceived;
-
-            // Neato client logging
-            _client.MessageSent += (object sender, MessageSentEventArgs e) => { _log.LogInformation("Neato Message sent: " + e.Message); };
-            _client.MessageReceived += (object sender, MessageReceivedEventArgs e) => { _log.LogInformation("Neato Message received: " + e.Message); };
-            _client.Error += (object sender, System.IO.ErrorEventArgs e) =>
-            {
-                var exception = e.GetException();
-                _log.LogError(exception, exception.Message);
-                System.Environment.Exit(1);
-            };
+            _client = neatoClient;
         }
 
         #region Service implementation
 
         /// <inheritdoc />
-        protected override async Task StartServiceAsync(CancellationToken cancellationToken = default(CancellationToken))
+        protected override async Task StartServiceAsync(CancellationToken cancellationToken = default)
         {
-            _client.Connect();
-            await GetConfigAsync()
+            await GetConfigAsync(cancellationToken)
                 .ConfigureAwait(false);
+
+            // Enable refresh
+            if (_refresh != null)
+                _refresh.Dispose();
+
+            _refresh = new System.Timers.Timer(_refreshInterval);
+            _refresh.Elapsed += RefreshAsync;
+            _refresh.Start();
         }
 
         /// <inheritdoc />
-        protected override Task StopServiceAsync(CancellationToken cancellationToken = default(CancellationToken))
+        protected override Task StopServiceAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
@@ -74,61 +80,34 @@ namespace HomeAutio.Mqtt.Neato
         #region MQTT Implementation
 
         /// <summary>
-        /// Handles commands for the Neato published to MQTT.
+        /// Handles commands for the Harmony published to MQTT.
         /// </summary>
         /// <param name="sender">Event sender.</param>
         /// <param name="e">Event args.</param>
         protected override async void Mqtt_MqttMsgPublishReceived(object sender, MqttApplicationMessageReceivedEventArgs e)
         {
-            var message = e.ApplicationMessage.ConvertPayloadToString();
+            var message = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
             _log.LogInformation("MQTT message received for topic " + e.ApplicationMessage.Topic + ": " + message);
 
-            var commandType = e.ApplicationMessage.Topic.Replace(TopicRoot + "/controls/", string.Empty).Replace("/set", string.Empty);
-
-            Command command = null;
-            if (commandType == "power")
-                command = new PowerCommand { Value = message };
-
-            if (commandType == "volume")
-                command = new VolumeCommand { Value = message };
-
-            if (commandType == "mute")
-                command = new MuteCommand { Value = message };
-
-            if (commandType == "input")
-                command = new InputCommand { Value = message };
-
-            if (commandType == "surroundMode")
-                command = new SurroundModeCommand { Value = message };
-
-            if (commandType == "tunerFrequency")
-                command = new TunerFrequencyCommand { Value = message };
-
-            if (commandType == "tunerMode")
-                command = new TunerModeCommand { Value = message };
-
-            if (commandType.StartsWith("zone"))
+            switch (e.ApplicationMessage.Topic.Substring(TopicRoot.Length))
             {
-                if (int.TryParse(commandType.Substring(4, 1), out int zoneId))
-                {
-                    if (commandType == $"zone{zoneId}Power")
-                        command = new ZonePowerCommand { Value = message, ZoneId = zoneId };
-
-                    if (commandType == $"zone{zoneId}Volume")
-                        command = new ZoneVolumeCommand { Value = message, ZoneId = zoneId };
-
-                    if (commandType == $"zone{zoneId}Mute")
-                        command = new ZoneMuteCommand { Value = message, ZoneId = zoneId };
-
-                    if (commandType == $"zone{zoneId}Input")
-                        command = new ZoneInputCommand { Value = message, ZoneId = zoneId };
-                }
-            }
-
-            if (command != null)
-            {
-                await _client.SendCommandAsync(command)
-                    .ConfigureAwait(false);
+                case "/dock/set":
+                    await _client.SendToBaseAsync()
+                        .ConfigureAwait(false);
+                    break;
+                case "/findMe/set":
+                    await _client.FindMeAsync()
+                        .ConfigureAwait(false);
+                    break;
+                case "/startStop/set":
+                    await _client.StartCleaningAsync(new StartCleaningParameters
+                    {
+                        Category = CleaningCategory.HouseCleaning,
+                        Mode = CleaningMode.Turbo,
+                        Modifier = CleaningFrequency.Normal,
+                        NavigationMode = I8Beef.Neato.Nucleo.Protocol.Services.HouseCleaning.NavigationMode.Normal
+                    }).ConfigureAwait(false);
+                    break;
             }
         }
 
@@ -137,91 +116,99 @@ namespace HomeAutio.Mqtt.Neato
         #region Neato implementation
 
         /// <summary>
-        /// Handles publishing updates to the Neato current activity to MQTT.
+        /// Heartbeat ping. Failure will result in the heartbeat being stopped, which will
+        /// make any future calls throw an exception as the heartbeat indicator will be disabled.
         /// </summary>
         /// <param name="sender">Event sender.</param>
         /// <param name="e">Event args.</param>
-        private async void Neato_EventReceived(object sender, CommandEventArgs e)
+        private async void RefreshAsync(object sender, ElapsedEventArgs e)
         {
-            _log.LogInformation($"Neato event received: {e.Command.GetType()} {e.Command.Code} {e.Command.Value}");
+            // Make all of the calls to get current status
+            var state = await _client.GetRobotStateAsync()
+                .ConfigureAwait(false);
 
-            string commandType = null;
-            switch (e.Command.GetType().Name)
-            {
-                case "PowerCommand":
-                    commandType = "power";
-                    break;
-                case "VolumeCommand":
-                    commandType = "volume";
-                    break;
-                case "MuteCommand":
-                    commandType = "mute";
-                    break;
-                case "InputCommand":
-                    commandType = "input";
-                    break;
-                case "SurroundModeCommand":
-                    commandType = "surroundMode";
-                    break;
-                case "TunerFrequencyCommand":
-                    commandType = "tunerFrequency";
-                    break;
-                case "TunerModeCommand":
-                    commandType = "tunerMode";
-                    break;
-                case "ZonePowerCommand":
-                    commandType = $"zone{((ZonePowerCommand)e.Command).ZoneId}Power";
-                    break;
-                case "ZoneVolumeCommand":
-                    commandType = $"zone{((ZoneVolumeCommand)e.Command).ZoneId}Volume";
-                    break;
-                case "ZoneMuteCommand":
-                    commandType = $"zone{((ZoneMuteCommand)e.Command).ZoneId}Mute";
-                    break;
-                case "ZoneInputCommand":
-                    commandType = $"zone{((ZoneInputCommand)e.Command).ZoneId}Input";
-                    break;
-            }
+            var topicMap = GetTopicMap(state);
 
-            if (commandType != null)
+            // Compare to current cached status
+            var updates = CompareStatusObjects(_topicMap, topicMap);
+
+            // If updated, publish changes
+            if (updates.Count > 0)
             {
-                await MqttClient.PublishAsync(new MqttApplicationMessageBuilder()
-                        .WithTopic(TopicRoot + "/controls/" + commandType)
-                        .WithPayload(e.Command.Value)
+                foreach (var update in updates)
+                {
+                    await MqttClient.PublishAsync(new MqttApplicationMessageBuilder()
+                        .WithTopic(TopicRoot + update.Key)
+                        .WithPayload(update.Value.Trim())
                         .WithAtLeastOnceQoS()
                         .WithRetainFlag()
                         .Build())
                         .ConfigureAwait(false);
+                }
+
+                _topicMap = topicMap;
             }
         }
 
         /// <summary>
-        /// Maps Neato device actions to subscription topics.
+        /// Compares twomaster state objects.
         /// </summary>
-        /// <returns>An awaitable <see cref="Task"/>.</returns>
-        private async Task GetConfigAsync()
+        /// <param name="status1">First status.</param>
+        /// <param name="status2">Second status.</param>
+        /// <returns>List of changes.</returns>
+        private IDictionary<string, string> CompareStatusObjects(IDictionary<string, string> status1, IDictionary<string, string> status2)
         {
-            var commands = new Command[]
-            {
-                new PowerCommand { Value = "?" },
-                new VolumeCommand { Value = "?" },
-                new MuteCommand { Value = "?" },
-                new InputCommand { Value = "?" },
-                new SurroundModeCommand { Value = "?" },
-                new TunerFrequencyCommand { Value = "?" },
-                new TunerModeCommand { Value = "?" },
-                new ZonePowerCommand { Value = "?", ZoneId = 2 },
-                new ZoneVolumeCommand { Value = "?", ZoneId = 2 },
-                new ZoneMuteCommand { Value = "?", ZoneId = 2 },
-                new ZoneInputCommand { Value = "?", ZoneId = 2 }
-            };
+            return new Dictionary<string, string>(status2.Where(x => x.Key != status1[x.Key]));
+        }
 
-            // Run all queries and let the event handler publish out the query results
-            foreach (var command in commands)
+        /// <summary>
+        /// Maps Apex device actions to subscription topics.
+        /// </summary>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>Awaitable <see cref="Task" />.</returns>
+        private async Task GetConfigAsync(CancellationToken cancellationToken = default)
+        {
+            var state = await _client.GetRobotStateAsync()
+                .ConfigureAwait(false);
+
+            _topicMap = GetTopicMap(state);
+
+            foreach (var stateTopic in _topicMap)
             {
-                await _client.SendCommandAsync(command)
+                // Publish initial value
+                await MqttClient.PublishAsync(new MqttApplicationMessageBuilder()
+                    .WithTopic(stateTopic.Key)
+                    .WithPayload(stateTopic.Value)
+                    .WithAtLeastOnceQoS()
+                    .WithRetainFlag()
+                    .Build())
                     .ConfigureAwait(false);
             }
+        }
+
+        /// <summary>
+        /// Maps state to a topic.
+        /// </summary>
+        /// <param name="state">State object.</param>
+        /// <returns>A topic map.</returns>
+        private IDictionary<string, string> GetTopicMap(RobotState state)
+        {
+            return new Dictionary<string, string>
+            {
+                { $"{TopicRoot}/state", Enum.GetName(typeof(StateType), state.State) },
+                { $"{TopicRoot}/action", Enum.GetName(typeof(ActionType), state.Action) },
+                { $"{TopicRoot}/alert", state.Alert },
+                { $"{TopicRoot}/error", state.Error.HasValue ? state.Error.Value.ToString() : string.Empty },
+                { $"{TopicRoot}/cleaning/category", Enum.GetName(typeof(CleaningCategory), state.Cleaning.Category) },
+                { $"{TopicRoot}/cleaning/mode", Enum.GetName(typeof(CleaningMode), state.Cleaning.Mode) },
+                { $"{TopicRoot}/cleaning/navigationMode", Enum.GetName(typeof(I8Beef.Neato.Nucleo.Protocol.Services.HouseCleaning.NavigationMode), state.Cleaning.NavigationMode) },
+                { $"{TopicRoot}/cleaning/spotWidth", state.Cleaning.SpotWidth.ToString() },
+                { $"{TopicRoot}/cleaning/spotHeight", state.Cleaning.SpotHeight.ToString() },
+                { $"{TopicRoot}/details/charge", state.Details.Charge.ToString() },
+                { $"{TopicRoot}/details/isCharging", state.Details.IsCharging.ToString() },
+                { $"{TopicRoot}/details/isDocked", state.Details.IsDocked.ToString() },
+                { $"{TopicRoot}/details/isScheduleEnabled", state.Details.IsScheduleEnabled.ToString() }
+            };
         }
 
         #endregion
@@ -239,9 +226,10 @@ namespace HomeAutio.Mqtt.Neato
 
             if (disposing)
             {
-                if (_client != null)
+                if (_refresh != null)
                 {
-                    _client.Dispose();
+                    _refresh.Stop();
+                    _refresh.Dispose();
                 }
             }
 
