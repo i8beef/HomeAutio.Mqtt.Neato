@@ -157,23 +157,26 @@ namespace HomeAutio.Mqtt.Neato
         /// <returns>An awaitable <see cref="Task"/>.</returns>
         private static async Task ValidateSecretKey(IConfiguration config)
         {
-            // initialize tokens
-            var beeHiveClient = new BeeHiveClient(
-                config.GetValue<string>("neato:email"),
-                config.GetValue<string>("neato:password"));
-
-            var robots = await beeHiveClient.GetRobotsAsync();
-
-            for (var i = 0; i < robots.Count; i++)
+            if (string.IsNullOrEmpty(config.GetValue<string>("neato:serialNumber")) || string.IsNullOrEmpty(config.GetValue<string>("neato:secretKey")))
             {
-                Console.WriteLine("{ serial: '" + robots[i].Serial + "', secretKey: '" + robots[i].SecretKey + "' }");
+                // initialize tokens
+                var beeHiveClient = new BeeHiveClient(
+                    config.GetValue<string>("neato:email"),
+                    config.GetValue<string>("neato:password"));
+
+                var robots = await beeHiveClient.GetRobotsAsync();
+
+                for (var i = 0; i < robots.Count; i++)
+                {
+                    Console.WriteLine("{ serial: '" + robots[i].Serial + "', secretKey: '" + robots[i].SecretKey + "' }");
+                }
+
+                Console.WriteLine("Update config file with one of above values. Restarting in 15 seconds");
+
+                await Task.Delay(15 * 1000);
+
+                throw new Exception("Missing serial and secretKey");
             }
-
-            Console.WriteLine("Update config file with one of above values. Restarting in 15 seconds");
-
-            await Task.Delay(15 * 1000);
-
-            throw new Exception("Missing serial and secreyKey");
         }
     }
 }
