@@ -168,7 +168,7 @@ namespace HomeAutio.Mqtt.Neato
         /// <returns>List of changes.</returns>
         private IDictionary<string, string> CompareStatusObjects(IDictionary<string, string> status1, IDictionary<string, string> status2)
         {
-            return new Dictionary<string, string>(status2.Where(x => x.Key != status1[x.Key]));
+            return new Dictionary<string, string>(status2.Where(x => x.Value != status1[x.Key]));
         }
 
         /// <summary>
