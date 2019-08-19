@@ -137,7 +137,7 @@ namespace HomeAutio.Mqtt.Neato
                     }
 
                     break;
-                case "/dissableCurrentAlert/set":
+                case "/dismissCurrentAlert/set":
                     await _client.DismissCurrentAlertAsync()
                         .ConfigureAwait(false);
                     break;
