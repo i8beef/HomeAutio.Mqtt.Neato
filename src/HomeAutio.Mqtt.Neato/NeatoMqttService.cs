@@ -42,7 +42,7 @@ namespace HomeAutio.Mqtt.Neato
             string neatoName,
             int refreshInterval,
             BrokerSettings brokerSettings)
-            : base(logger, brokerSettings, "Neato/" + neatoName)
+            : base(logger, brokerSettings, "neato/" + neatoName)
         {
             _log = logger;
             _refreshInterval = refreshInterval * 1000;
