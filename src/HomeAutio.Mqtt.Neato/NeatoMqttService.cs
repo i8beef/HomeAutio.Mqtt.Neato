@@ -99,7 +99,7 @@ namespace HomeAutio.Mqtt.Neato
                     await _client.FindMeAsync()
                         .ConfigureAwait(false);
                     break;
-                case "/startStop/set":
+                case "/start/set":
                     await _client.StartCleaningAsync(new StartCleaningParameters
                     {
                         Category = CleaningCategory.HouseCleaning,
@@ -107,6 +107,39 @@ namespace HomeAutio.Mqtt.Neato
                         Modifier = CleaningFrequency.Normal,
                         NavigationMode = I8Beef.Neato.Nucleo.Protocol.Services.HouseCleaning.NavigationMode.Normal
                     }).ConfigureAwait(false);
+                    break;
+                case "/stop/set":
+                    await _client.StopCleaningAsync()
+                        .ConfigureAwait(false);
+                    break;
+                case "/pause/set":
+                    await _client.PauseCleaningAsync()
+                        .ConfigureAwait(false);
+                    break;
+                case "/resume/set":
+                    await _client.ResumeCleaningAsync()
+                        .ConfigureAwait(false);
+                    break;
+                case "/startPersistentMapExploration/set":
+                    await _client.StartPersistentMapExplorationAsync()
+                        .ConfigureAwait(false);
+                    break;
+                case "/enableSchedule/set":
+                    if (message == "true")
+                    {
+                        await _client.EnableScheduleAsync()
+                            .ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await _client.DisableScheduleAsync()
+                            .ConfigureAwait(false);
+                    }
+
+                    break;
+                case "/dissableCurrentAlert/set":
+                    await _client.DismissCurrentAlertAsync()
+                        .ConfigureAwait(false);
                     break;
             }
         }
