@@ -105,7 +105,7 @@ namespace HomeAutio.Mqtt.Neato
                         Category = CleaningCategory.HouseCleaning,
                         Mode = CleaningMode.Turbo,
                         Modifier = CleaningFrequency.Normal,
-                        NavigationMode = I8Beef.Neato.Nucleo.Protocol.Services.HouseCleaning.NavigationMode.Normal
+                        NavigationMode = NavigationMode.Normal
                     }).ConfigureAwait(false);
                     break;
                 case "/stop/set":
@@ -244,7 +244,7 @@ namespace HomeAutio.Mqtt.Neato
                 { $"{TopicRoot}/error", state.Error.HasValue ? state.Error.Value.ToString() : string.Empty },
                 { $"{TopicRoot}/cleaning/category", Enum.GetName(typeof(CleaningCategory), state.Cleaning.Category) },
                 { $"{TopicRoot}/cleaning/mode", Enum.GetName(typeof(CleaningMode), state.Cleaning.Mode) },
-                { $"{TopicRoot}/cleaning/navigationMode", Enum.GetName(typeof(I8Beef.Neato.Nucleo.Protocol.Services.HouseCleaning.NavigationMode), state.Cleaning.NavigationMode) },
+                { $"{TopicRoot}/cleaning/navigationMode", Enum.GetName(typeof(NavigationMode), state.Cleaning.NavigationMode) },
                 { $"{TopicRoot}/cleaning/spotWidth", state.Cleaning.SpotWidth.ToString() },
                 { $"{TopicRoot}/cleaning/spotHeight", state.Cleaning.SpotHeight.ToString() },
                 { $"{TopicRoot}/details/charge", state.Details.Charge.ToString() },
