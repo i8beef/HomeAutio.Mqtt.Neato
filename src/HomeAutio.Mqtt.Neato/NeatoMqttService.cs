@@ -217,7 +217,7 @@ namespace HomeAutio.Mqtt.Neato
                 foreach (var update in updates)
                 {
                     await MqttClient.PublishAsync(new MqttApplicationMessageBuilder()
-                        .WithTopic(TopicRoot + update.Key)
+                        .WithTopic(update.Key)
                         .WithPayload(update.Value.Trim())
                         .WithAtLeastOnceQoS()
                         .WithRetainFlag()
