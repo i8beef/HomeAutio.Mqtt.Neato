@@ -11,6 +11,7 @@ using I8Beef.Neato.Nucleo.Protocol;
 using I8Beef.Neato.Nucleo.Protocol.Services.HouseCleaning;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
+using Newtonsoft.Json;
 
 namespace HomeAutio.Mqtt.Neato
 {
@@ -100,13 +101,17 @@ namespace HomeAutio.Mqtt.Neato
                         .ConfigureAwait(false);
                     break;
                 case "/start/set":
-                    await _client.StartCleaningAsync(new StartCleaningParameters
-                    {
-                        Category = CleaningCategory.HouseCleaning,
-                        Mode = CleaningMode.Turbo,
-                        Modifier = CleaningFrequency.Normal,
-                        NavigationMode = NavigationMode.Normal
-                    }).ConfigureAwait(false);
+                    var cleaningSettings = !string.IsNullOrEmpty(message) && message.Contains("{")
+                        ? JsonConvert.DeserializeObject<StartCleaningParameters>(message)
+                        : new StartCleaningParameters
+                            {
+                                Category = CleaningCategory.HouseCleaning,
+                                Mode = CleaningMode.Turbo,
+                                Modifier = CleaningFrequency.Normal,
+                                NavigationMode = NavigationMode.Normal
+                            };
+
+                    await _client.StartCleaningAsync(cleaningSettings).ConfigureAwait(false);
                     break;
                 case "/stop/set":
                     await _client.StopCleaningAsync()
