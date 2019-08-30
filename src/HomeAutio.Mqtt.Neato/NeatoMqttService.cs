@@ -105,10 +105,10 @@ namespace HomeAutio.Mqtt.Neato
                         ? JsonConvert.DeserializeObject<StartCleaningParameters>(message)
                         : new StartCleaningParameters
                             {
-                                Category = CleaningCategory.HouseCleaning,
-                                Mode = CleaningMode.Turbo,
+                                Category = Enum.Parse<CleaningCategory>(_topicMap[$"{TopicRoot}/cleaning/category"]),
+                                Mode = Enum.Parse<CleaningMode>(_topicMap[$"{TopicRoot}/cleaning/mode"]),
                                 Modifier = CleaningFrequency.Normal,
-                                NavigationMode = NavigationMode.Normal
+                                NavigationMode = Enum.Parse<NavigationMode>(_topicMap[$"{TopicRoot}/cleaning/navigationMode"])
                             };
 
                     await _client.StartCleaningAsync(cleaningSettings).ConfigureAwait(false);
