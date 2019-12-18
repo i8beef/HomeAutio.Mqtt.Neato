@@ -11,6 +11,7 @@ using I8Beef.Neato.Nucleo.Protocol;
 using I8Beef.Neato.Nucleo.Protocol.Services.HouseCleaning;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
+using MQTTnet.Extensions.ManagedClient;
 using Newtonsoft.Json;
 
 namespace HomeAutio.Mqtt.Neato
@@ -83,9 +84,8 @@ namespace HomeAutio.Mqtt.Neato
         /// <summary>
         /// Handles commands for the Harmony published to MQTT.
         /// </summary>
-        /// <param name="sender">Event sender.</param>
         /// <param name="e">Event args.</param>
-        protected override async void Mqtt_MqttMsgPublishReceived(object sender, MqttApplicationMessageReceivedEventArgs e)
+        protected override async void Mqtt_MqttMsgPublishReceived(MqttApplicationMessageReceivedEventArgs e)
         {
             var message = Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
             _log.LogInformation("MQTT message received for topic " + e.ApplicationMessage.Topic + ": " + message);
@@ -111,7 +111,8 @@ namespace HomeAutio.Mqtt.Neato
                                 NavigationMode = Enum.Parse<NavigationMode>(_topicMap[$"{TopicRoot}/cleaning/navigationMode"])
                             };
 
-                    await _client.StartCleaningAsync(cleaningSettings).ConfigureAwait(false);
+                    await _client.StartCleaningAsync(cleaningSettings)
+                        .ConfigureAwait(false);
                     break;
                 case "/stop/set":
                     await _client.StopCleaningAsync()
@@ -148,7 +149,8 @@ namespace HomeAutio.Mqtt.Neato
                     break;
             }
 
-            await RefreshStateAsync();
+            await RefreshStateAsync()
+                .ConfigureAwait(false);
         }
 
         #endregion
@@ -162,7 +164,8 @@ namespace HomeAutio.Mqtt.Neato
         /// <param name="e">Event args.</param>
         private async void RefreshAsync(object sender, ElapsedEventArgs e)
         {
-            await RefreshStateAsync();
+            await RefreshStateAsync()
+                .ConfigureAwait(false);
         }
 
         /// <summary>
@@ -183,7 +186,7 @@ namespace HomeAutio.Mqtt.Neato
         /// <returns>Awaitable <see cref="Task" />.</returns>
         private async Task GetConfigAsync(CancellationToken cancellationToken = default)
         {
-            var state = await _client.GetRobotStateAsync()
+            var state = await _client.GetRobotStateAsync(cancellationToken)
                 .ConfigureAwait(false);
 
             _topicMap = GetTopicMap(state);
@@ -191,13 +194,14 @@ namespace HomeAutio.Mqtt.Neato
             foreach (var stateTopic in _topicMap)
             {
                 // Publish initial value
-                await MqttClient.PublishAsync(new MqttApplicationMessageBuilder()
-                    .WithTopic(stateTopic.Key)
-                    .WithPayload(stateTopic.Value)
-                    .WithAtLeastOnceQoS()
-                    .WithRetainFlag()
-                    .Build())
-                    .ConfigureAwait(false);
+                await MqttClient.PublishAsync(
+                    new MqttApplicationMessageBuilder()
+                        .WithTopic(stateTopic.Key)
+                        .WithPayload(stateTopic.Value)
+                        .WithAtLeastOnceQoS()
+                        .WithRetainFlag()
+                        .Build(),
+                    cancellationToken).ConfigureAwait(false);
             }
         }
 

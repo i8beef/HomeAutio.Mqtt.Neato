@@ -22,18 +22,8 @@ namespace HomeAutio.Mqtt.Neato
         /// <summary>
         /// Main program entry point.
         /// </summary>
-        /// <param name="args">Arguments.</param>
-        public static void Main(string[] args)
-        {
-            MainAsync(args).GetAwaiter().GetResult();
-        }
-
-        /// <summary>
-        /// Main program entry point.
-        /// </summary>
-        /// <param name="args">Arguments.</param>
         /// <returns>Awaitable <see cref="Task" />.</returns>
-        public static async Task MainAsync(string[] args)
+        public static async Task Main()
         {
             var environmentName = Environment.GetEnvironmentVariable("ENVIRONMENT");
             if (string.IsNullOrEmpty(environmentName))
@@ -54,9 +44,8 @@ namespace HomeAutio.Mqtt.Neato
             try
             {
                 // Validates existing or gets new secretKey
-                await ValidateSecretKey(config);
-
-                var hostBuilder = CreateHostBuilder(config);
+                var secretKey = await GetSecretKey(config);
+                var hostBuilder = CreateHostBuilder(config, secretKey);
                 await hostBuilder.RunConsoleAsync();
             }
             catch (Exception ex)
@@ -74,8 +63,9 @@ namespace HomeAutio.Mqtt.Neato
         /// Creates an <see cref="IHostBuilder"/>.
         /// </summary>
         /// <param name="config">External configuration.</param>
+        /// <param name="secretKey">SecretKey for the specified robot.</param>
         /// <returns>A configured <see cref="IHostBuilder"/>.</returns>
-        private static IHostBuilder CreateHostBuilder(IConfiguration config)
+        private static IHostBuilder CreateHostBuilder(IConfiguration config, string secretKey)
         {
             return new HostBuilder()
                 .ConfigureAppConfiguration((hostContext, configuration) => configuration.AddConfiguration(config))
@@ -83,7 +73,7 @@ namespace HomeAutio.Mqtt.Neato
                 .ConfigureServices((hostContext, services) =>
                 {
                     // Setup client
-                    services.AddScoped<INucleoClient, NucleoClient>(serviceProvider => new NucleoClient(config.GetValue<string>("neato:serialNumber"), config.GetValue<string>("neato:secretKey")));
+                    services.AddScoped<INucleoClient, NucleoClient>(serviceProvider => new NucleoClient(config.GetValue<string>("neato:serialNumber"), secretKey));
                     services.AddScoped<IRobot, Robot>();
 
                     // Setup service instance
@@ -151,32 +141,23 @@ namespace HomeAutio.Mqtt.Neato
         }
 
         /// <summary>
-        /// Validates current, or gets new secret key.
+        /// Gets current, or gets new secret key.
         /// </summary>
         /// <param name="config">External configuration.</param>
-        /// <returns>An awaitable <see cref="Task"/>.</returns>
-        private static async Task ValidateSecretKey(IConfiguration config)
+        /// <returns>The secretKey for the serialNumber specified in config.</returns>
+        private static async Task<string> GetSecretKey(IConfiguration config)
         {
-            if (string.IsNullOrEmpty(config.GetValue<string>("neato:serialNumber")) || string.IsNullOrEmpty(config.GetValue<string>("neato:secretKey")))
-            {
-                // initialize tokens
-                var beeHiveClient = new BeeHiveClient(
-                    config.GetValue<string>("neato:email"),
-                    config.GetValue<string>("neato:password"));
+            // initialize tokens
+            var beeHiveClient = new BeeHiveClient(
+                config.GetValue<string>("neato:email"),
+                config.GetValue<string>("neato:password"));
 
-                var robots = await beeHiveClient.GetRobotsAsync();
+            var robots = await beeHiveClient.GetRobotsAsync();
+            var robot = robots.FirstOrDefault(x => x.Serial == config.GetValue<string>("neato:serialNumber"));
+            if (robot == null)
+                throw new Exception("Cannot match serialNumber with account");
 
-                for (var i = 0; i < robots.Count; i++)
-                {
-                    Console.WriteLine("{ serial: '" + robots[i].Serial + "', secretKey: '" + robots[i].SecretKey + "' }");
-                }
-
-                Console.WriteLine("Update config file with one of above values. Restarting in 15 seconds");
-
-                await Task.Delay(15 * 1000);
-
-                throw new Exception("Missing serial and secretKey");
-            }
+            return robot.SecretKey;
         }
     }
 }

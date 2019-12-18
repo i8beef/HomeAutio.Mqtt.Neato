@@ -2,7 +2,8 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp2.1</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
     <PackageProjectUrl>https://github.com/i8beef/HomeAutio.Mqtt.Neato</PackageProjectUrl>
     <Authors>Michael Hallock</Authors>
     <Company>Michael Hallock</Company>
@@ -31,16 +32,16 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="HomeAutio.Mqtt.Core" Version="3.0.0.51" />
+    <PackageReference Include="HomeAutio.Mqtt.Core" Version="3.0.0.55" />
     <PackageReference Include="I8Beef.CodeAnalysis.RuleSet" Version="1.0.15">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="I8Beef.Neato" Version="1.0.0.11" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="2.2.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="2.1.1" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="2.1.1" />
-    <PackageReference Include="Serilog.Extensions.Logging" Version="2.0.2" />
+    <PackageReference Include="I8Beef.Neato" Version="1.0.0.13" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="3.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="3.1.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="3.1.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="3.0.1" />
     <PackageReference Include="Serilog.Settings.Configuration" Version="3.1.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
     <PackageReference Include="Serilog.Sinks.RollingFile" Version="3.3.0" />
