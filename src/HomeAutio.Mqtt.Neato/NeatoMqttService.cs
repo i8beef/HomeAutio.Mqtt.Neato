@@ -250,7 +250,7 @@ namespace HomeAutio.Mqtt.Neato
                 { $"{TopicRoot}/state", Enum.GetName(typeof(StateType), state.State) },
                 { $"{TopicRoot}/action", Enum.GetName(typeof(ActionType), state.Action) },
                 { $"{TopicRoot}/alert", state.Alert },
-                { $"{TopicRoot}/error", state.Error.HasValue ? state.Error.Value.ToString() : string.Empty },
+                { $"{TopicRoot}/error", state.Error },
                 { $"{TopicRoot}/cleaning/category", Enum.GetName(typeof(CleaningCategory), state.Cleaning.Category) },
                 { $"{TopicRoot}/cleaning/mode", Enum.GetName(typeof(CleaningMode), state.Cleaning.Mode) },
                 { $"{TopicRoot}/cleaning/navigationMode", Enum.GetName(typeof(NavigationMode), state.Cleaning.NavigationMode) },
