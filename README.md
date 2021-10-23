@@ -1,4 +1,5 @@
-[![Build status](https://ci.appveyor.com/api/projects/status/s9gcifk2d27uqbgo/branch/master?svg=true)](https://ci.appveyor.com/project/i8beef/homeautio-mqtt-neato/branch/master)
+![Build](https://github.com/i8beef/HomeAutio.Mqtt.Neato/actions/workflows/build.yml/badge.svg?branch=master)
+![Release](https://github.com/i8beef/HomeAutio.Mqtt.Neato/actions/workflows/release.yml/badge.svg)
 
 # HomeAutio.Mqtt.Neato
 Neato Botvac to MQTT bridge
